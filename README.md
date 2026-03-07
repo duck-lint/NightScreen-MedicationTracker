@@ -1,6 +1,6 @@
-# RedPillz
+# What This App is For
 
-RedPillz is a small local-first Android utility app built for a Pixel-first workflow. This first pass fully implements pill dose logging and includes a real, bounded system-wide red overlay feature path using Android overlay APIs instead of an in-app fake.
+A small local-first Android utility app built for a Pixel-first workflow. This first pass fully implements pill dose logging and includes a real, bounded system-wide red overlay feature path using Android overlay APIs instead of an in-app fake.
 
 ## Architecture Summary
 
