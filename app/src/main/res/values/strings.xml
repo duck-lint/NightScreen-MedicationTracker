@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RedPillz</string>
+    <string name="overlay_notification_channel_name">Red overlay</string>
+    <string name="overlay_notification_channel_description">Controls the system-wide red light reduction overlay.</string>
+    <string name="overlay_notification_title">Red overlay active</string>
+    <string name="overlay_notification_text">Tap Stop to remove the overlay.</string>
+    <string name="overlay_notification_stop">Stop</string>
+</resources>
+
