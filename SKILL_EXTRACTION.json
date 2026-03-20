@@ -1,0 +1,648 @@
+{
+  "repository_summary": {
+    "name": "NightScreen-MedicationTracker (RedPillz)",
+    "description": "A local-first Android utility app for pill dose logging with a system-wide red overlay (night mode). Built with Kotlin, Jetpack Compose, Room, and DataStore. Implements MVVM with manual dependency injection, reactive state management via Flow/StateFlow, a foreground service for the overlay, and a CI pipeline producing debug APKs.",
+    "language": "Kotlin",
+    "framework": "Android (Jetpack Compose, Room, DataStore, Navigation Compose)",
+    "approximate_size": "~1,300 lines production code, ~400 lines test code, 36 source files, 5 test files",
+    "extraction_date": "2026-03-20"
+  },
+
+  "atomic_skills": [
+    {
+      "id": "SK-001",
+      "skill": "Defining immutable Kotlin data classes as domain models",
+      "evidence": [
+        "data/model/Medication.kt — data class with id, name, isActive, timestamps",
+        "data/model/DoseEntryRecord.kt — data class combining dose and medication info",
+        "data/model/DoseEntryDraft.kt — input DTO data class for create/update operations",
+        "data/model/TodayMedicationTotal.kt — aggregated daily total data class"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-002",
+      "skill": "Using Kotlin sealed interfaces for type-safe exhaustive result handling",
+      "evidence": [
+        "data/DoseEntryValidator.kt — sealed interface DoseValidationResult with Valid (data object) and Invalid(message) subtypes",
+        "Callers in HomeViewModel.kt and PillLogViewModel.kt use exhaustive when expressions"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-003",
+      "skill": "Writing Kotlin extension functions for entity-to-domain model mapping",
+      "evidence": [
+        "data/repository/RoomMedicationRepository.kt — private MedicationEntity.toModel() extension",
+        "data/repository/RoomDoseEntryRepository.kt — DoseEntryWithMedicationRow mapped to DoseEntryRecord"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-004",
+      "skill": "Implementing the repository pattern with interface abstraction and Room-backed implementation",
+      "evidence": [
+        "data/repository/MedicationRepository.kt — interface defining observeAll(), observeActive(), createMedication(), renameMedication(), setMedicationActive()",
+        "data/repository/RoomMedicationRepository.kt — concrete implementation injected with DAO and Clock",
+        "data/repository/DoseEntryRepository.kt — interface for CRUD on dose entries",
+        "data/repository/RoomDoseEntryRepository.kt — concrete Room implementation"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-005",
+      "skill": "Configuring a Room database with entities, DAOs, TypeConverters, and indexed foreign keys",
+      "evidence": [
+        "data/local/AppDatabase.kt — @Database with MedicationEntity and DoseEntryEntity, version 1",
+        "data/local/InstantConverters.kt — @TypeConverter for java.time.Instant ↔ Long (epoch millis)",
+        "data/local/DoseEntryEntity.kt — @Entity with ForeignKey to medications, indices on medicationId and takenAt",
+        "data/local/MedicationEntity.kt — @Entity with auto-generated PK"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-006",
+      "skill": "Writing Room DAO queries including multi-table JOINs returning projection DTOs",
+      "evidence": [
+        "data/local/DoseEntryDao.kt — observeAllWithMedication() performs INNER JOIN between dose_entries and medications, returns Flow<List<DoseEntryWithMedicationRow>>",
+        "data/local/DoseEntryWithMedicationRow.kt — DTO matching the joined query columns",
+        "data/local/MedicationDao.kt — observeAll() with ORDER BY isActive DESC, name ASC"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-007",
+      "skill": "Using Kotlin Result<T> for error propagation without exceptions in repository operations",
+      "evidence": [
+        "data/repository/RoomMedicationRepository.kt — all write methods return Result<Unit>; failure cases use Result.failure(IllegalArgumentException(...))",
+        "data/repository/RoomDoseEntryRepository.kt — createEntry(), updateEntry(), deleteEntry() all return Result<Unit>",
+        "viewmodel/HomeViewModel.kt — calls .fold(onSuccess, onFailure) on repository results"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-008",
+      "skill": "Implementing input validation with trim-and-reject-blank patterns and existence checks before writes",
+      "evidence": [
+        "data/repository/RoomMedicationRepository.kt — trims name, rejects blank, checks getById() before rename/archive",
+        "data/repository/RoomDoseEntryRepository.kt — trims notes before persistence",
+        "data/DoseEntryValidator.kt — validates medicationId not null, dosage finite and positive, takenAt present"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-009",
+      "skill": "Validating numeric input for edge cases including NaN, Infinity, zero, and negative values",
+      "evidence": [
+        "data/DoseEntryValidator.kt — checks dosage.isFinite() and > 0.0 after toDoubleOrNull()",
+        "test/DoseEntryValidatorTest.kt — tests for empty, 0, negative, NaN, Infinity inputs, and valid decimal values"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-010",
+      "skill": "Using Kotlin Coroutines Flow and StateFlow for reactive data streaming from database to UI",
+      "evidence": [
+        "data/local/MedicationDao.kt — returns Flow<List<MedicationEntity>>",
+        "data/local/DoseEntryDao.kt — returns Flow<List<DoseEntryWithMedicationRow>>",
+        "data/repository/RoomMedicationRepository.kt — maps DAO flows through .map { } to domain models",
+        "overlay/OverlayPreferencesRepository.kt — DataStore.data flow mapped to StateFlow via stateIn()"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-011",
+      "skill": "Using Flow.combine() to merge multiple reactive sources into a single UI state",
+      "evidence": [
+        "viewmodel/HomeViewModel.kt — combine() of 7 flows (medications, entries, form, infoMessage, overlayPrefs, runtimeState, permission) into single HomeUiState StateFlow",
+        "Uses vararg overload with manual casting due to type erasure, with @Suppress(\"UNCHECKED_CAST\")"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-012",
+      "skill": "Using StateFlow with stateIn() for eagerly-shared, lifecycle-safe UI state in ViewModels",
+      "evidence": [
+        "viewmodel/HomeViewModel.kt — .stateIn(viewModelScope, SharingStarted.Eagerly, HomeUiState())",
+        "overlay/OverlayPreferencesRepository.kt — .stateIn(scope, SharingStarted.Eagerly, OverlayPreferences())",
+        "overlay/OverlayRuntimeStore.kt — MutableStateFlow with asStateFlow() for runtime state"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-013",
+      "skill": "Implementing MVVM architecture with ViewModels driving Compose UI via collectAsStateWithLifecycle",
+      "evidence": [
+        "viewmodel/HomeViewModel.kt, PillLogViewModel.kt, OverlayViewModel.kt, SettingsViewModel.kt — each ViewModel exposes StateFlow<UiState>",
+        "ui/RedPillzRoot.kt — each screen collects ViewModel state with collectAsStateWithLifecycle()",
+        "Clear separation: data layer → ViewModel → Composable"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-014",
+      "skill": "Implementing manual dependency injection via an application-scoped container without DI frameworks",
+      "evidence": [
+        "AppContainer.kt — singleton container initialized in RedPillzApp.onCreate(), provides all repositories, services, and utilities",
+        "Uses constructor injection for all concrete classes (e.g., RoomMedicationRepository(dao, clock))",
+        "viewmodel/ViewModelFactory.kt — generic factory for manual ViewModel instantiation"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-015",
+      "skill": "Implementing an Android foreground service with notification channel, lifecycle management, and API-level compatibility",
+      "evidence": [
+        "service/OverlayService.kt — foreground service with NOTIFICATION_ID, ensureNotificationChannel(), IMPORTANCE_LOW",
+        "startForegroundCompat() checks Build.VERSION.SDK_INT >= UPSIDE_DOWN_CAKE for ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE",
+        "onDestroy() cleans up overlay view; try-catch for IllegalArgumentException on detached views"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-016",
+      "skill": "Implementing a system-wide overlay using WindowManager TYPE_APPLICATION_OVERLAY with non-interactive flags",
+      "evidence": [
+        "service/OverlayService.kt — creates View with ARGB red color, adds via windowManager.addView()",
+        "createLayoutParams() — MATCH_PARENT, TYPE_APPLICATION_OVERLAY, FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCHABLE | FLAG_NOT_TOUCH_MODAL",
+        "PixelFormat.TRANSLUCENT for transparency support",
+        "Alpha bounded via coerceIn(0.1f, 0.8f)"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-017",
+      "skill": "Managing overlay view lifecycle with safe add/update/remove handling for WindowManager",
+      "evidence": [
+        "service/OverlayService.kt — showOverlay() reuses existing view or adds new; removeOverlayView() catches IllegalArgumentException for already-detached views",
+        "onDestroy() always attempts cleanup",
+        "Intent-driven state transitions (ACTION_START, ACTION_UPDATE, ACTION_STOP)"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-018",
+      "skill": "Using Android DataStore Preferences for typed persistent key-value storage",
+      "evidence": [
+        "overlay/OverlayPreferencesRepository.kt — Context.overlayPreferencesDataStore extension property via preferencesDataStore(name)",
+        "Typed keys: booleanPreferencesKey(\"overlay_enabled\"), floatPreferencesKey(\"overlay_alpha\")",
+        "Read: dataStore.data.map {} with defaults and coerceIn(); Write: dataStore.edit { prefs -> prefs[key] = value }"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-019",
+      "skill": "Applying bounds checking (coerceIn) on numeric configuration values at both read and write boundaries",
+      "evidence": [
+        "overlay/OverlayPreferencesRepository.kt — alpha coerceIn(0.1f, 0.8f) on read and write",
+        "service/OverlayService.kt — alpha coerceIn(0.1f, 0.8f) when constructing overlay"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-020",
+      "skill": "Implementing controller pattern separating service lifecycle commands from business-rule validation",
+      "evidence": [
+        "overlay/OverlayController.kt — interface with startFromVisibleUi(), stop(), refresh()",
+        "overlay/DefaultOverlayController.kt — validates permission and enabled state before starting service; conditional refresh logic (running+permitted → update; running+not → stop)",
+        "Decouples ViewModel from direct service interaction"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-021",
+      "skill": "Implementing pure-function status resolution from multiple state inputs",
+      "evidence": [
+        "overlay/OverlayStatusResolver.kt — resolve(permissionGranted, prefs, runtimeState) returns OverlayStatusSummary(headline, detail, canStart)",
+        "Priority chain: permission → running → disabled → ready",
+        "test/OverlayStatusResolverTest.kt — tests permission-required and ready states"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-022",
+      "skill": "Building reusable Jetpack Compose UI components with configurable callbacks and state hoisting",
+      "evidence": [
+        "ui/components/CommonComponents.kt — SectionCard(), InfoMessage(), MedicationSelector(), QuickDoseCard(), DoseEditorCard(), TimestampEditor(), TotalsList(), DoseEntryList(), ScreenColumn()",
+        "Each composable accepts state and event callbacks as parameters (state hoisting pattern)",
+        "Consistent structural patterns across all components"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-023",
+      "skill": "Implementing Compose navigation with bottom bar and NavHost routing",
+      "evidence": [
+        "ui/RedPillzRoot.kt — Scaffold with NavigationBar and 4 NavigationBarItems",
+        "NavHost with composable() routes for home, pill_log, overlay, settings",
+        "Navigation state tracked via navController.currentBackStackEntryAsState()"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-024",
+      "skill": "Implementing Material Design 3 dark theme with custom color scheme in Compose",
+      "evidence": [
+        "ui/theme/Theme.kt — darkColorScheme() with custom primary (#FF5F5F red), dark backgrounds, on-surface colors",
+        "RedPillzTheme() composable wrapping MaterialTheme",
+        "res/values/themes.xml — Theme.Material3.DayNight.NoActionBar base"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-025",
+      "skill": "Implementing date and time picker dialogs with timezone-correct Instant conversion in Compose",
+      "evidence": [
+        "ui/components/CommonComponents.kt — TimestampEditor() uses DatePickerDialog and TimePickerDialog",
+        "Converts Instant → ZonedDateTime for display, user edits → new ZonedDateTime → Instant",
+        "Includes 'Use current time' button for convenience"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-026",
+      "skill": "Using ExposedDropdownMenuBox for dropdown selection with custom display logic in Compose",
+      "evidence": [
+        "ui/components/CommonComponents.kt — MedicationSelector() uses ExposedDropdownMenuBox with ExposedDropdownMenu",
+        "Appends '(archived)' label for inactive medications",
+        "Handles disabled state when medication list is empty"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-027",
+      "skill": "Formatting java.time.Instant to locale-appropriate display strings for UI",
+      "evidence": [
+        "ui/UiFormatting.kt — formatInstant() converts Instant to 'MMM d, h:mm a' via ZonedDateTime and DateTimeFormatter",
+        "formatDoseMg() conditionally shows integer or one-decimal format"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-028",
+      "skill": "Implementing timezone-aware 'today' boundary calculations for date-scoped aggregation",
+      "evidence": [
+        "data/TodayDoseSummaryCalculator.kt — uses Clock + ZoneId to compute local midnight boundaries, filters entries within today range",
+        "test/TodayDoseSummaryCalculatorTest.kt — tests with fixed clocks across different timezones to verify correct midnight handling"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-029",
+      "skill": "Using java.time.Instant as the canonical timestamp representation with epoch-millis persistence",
+      "evidence": [
+        "data/local/InstantConverters.kt — @TypeConverter between Instant and Long (toEpochMilli / ofEpochMilli)",
+        "All entities use Instant for createdAt, updatedAt, takenAt fields",
+        "data/repository/RoomMedicationRepository.kt — Instant.now(clock) for timestamp generation"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-030",
+      "skill": "Injecting java.time.Clock for deterministic, testable time-dependent logic",
+      "evidence": [
+        "AppContainer.kt — provides Clock.systemUTC() to repositories and calculators",
+        "data/TodayDoseSummaryCalculator.kt — accepts Clock via constructor",
+        "test/TodayDoseSummaryCalculatorTest.kt — uses Clock.fixed() with specific Instant and ZoneId",
+        "test/HomeViewModelTest.kt — uses Clock.fixed(2026-03-07T12:00:00Z, UTC)"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-031",
+      "skill": "Writing JUnit 4 unit tests with deterministic state and structured assertions",
+      "evidence": [
+        "test/DoseEntryValidatorTest.kt — 5 test methods covering invalid and valid dosage inputs",
+        "test/TodayDoseSummaryCalculatorTest.kt — tests grouping and timezone boundary logic",
+        "test/OverlayStatusResolverTest.kt — tests status resolution priority chain"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-032",
+      "skill": "Creating fake repository implementations with MutableStateFlow for ViewModel testing",
+      "evidence": [
+        "test/HomeViewModelTest.kt — FakeMedicationRepository with MutableStateFlow<List<Medication>> and seed() method",
+        "FakeDoseEntryRepository with manual ID generation, auto-sorting, and Result.success returns",
+        "FakeOverlayPreferenceStore and FakeOverlayController as simple StateFlow wrappers"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-033",
+      "skill": "Using MainDispatcherRule (TestWatcher) to replace Dispatchers.Main in coroutine unit tests",
+      "evidence": [
+        "test/MainDispatcherRule.kt — JUnit TestWatcher that sets StandardTestDispatcher as Main, resets on finished",
+        "test/HomeViewModelTest.kt — @get:Rule val mainDispatcherRule with @OptIn(ExperimentalCoroutinesApi::class)"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-034",
+      "skill": "Testing ViewModel state transitions with advanceUntilIdle() for coroutine flow verification",
+      "evidence": [
+        "test/HomeViewModelTest.kt — runTest block calls advanceUntilIdle() between create/update/delete operations to await Flow emissions, then asserts on ViewModel UiState"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-035",
+      "skill": "Configuring GitHub Actions CI for Android debug builds with JDK setup and Gradle caching",
+      "evidence": [
+        ".github/workflows/android-build.yml — triggers on push/PR to main, ubuntu-latest runner",
+        "actions/setup-java@v4 with java-version 21, distribution temurin, cache gradle",
+        "Runs ./gradlew assembleDebug and uploads APK artifact"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-036",
+      "skill": "Publishing CI build artifacts via GitHub Actions upload-artifact",
+      "evidence": [
+        ".github/workflows/android-build.yml — actions/upload-artifact@v4 with name redpillz-debug-apk, path app/build/outputs/apk/debug/app-debug.apk"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-037",
+      "skill": "Configuring Gradle Kotlin DSL build with KSP, Compose, and Room compiler plugins",
+      "evidence": [
+        "app/build.gradle.kts — plugins: android.application, kotlin.android, com.google.devtools.ksp",
+        "buildFeatures { compose = true }, composeOptions { kotlinCompilerExtensionVersion }",
+        "ksp(\"androidx.room:room-compiler:2.6.1\") for annotation processing"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-038",
+      "skill": "Declaring Android permissions and foreground service types in AndroidManifest",
+      "evidence": [
+        "AndroidManifest.xml — SYSTEM_ALERT_WINDOW, FOREGROUND_SERVICE, FOREGROUND_SERVICE_SPECIAL_USE permissions",
+        "OverlayService declared with foregroundServiceType='specialUse'",
+        "PROPERTY_SPECIAL_USE_FGS_SUBTYPE property documenting purpose"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-039",
+      "skill": "Using Compose LifecycleResumeEffect for triggering actions on screen resume",
+      "evidence": [
+        "ui/LifecycleResumeEffect.kt — DisposableEffect on lifecycleOwner with LifecycleEventObserver, triggers callback on ON_RESUME",
+        "Used in OverlayViewModel screen to refresh permission state when user returns from settings"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-040",
+      "skill": "Structuring an Android project with clean package separation (data/overlay/service/ui/viewmodel)",
+      "evidence": [
+        "Package structure: data/ (local, model, repository), overlay/ (controller, state, resolver), service/, ui/ (components, theme), viewmodel/",
+        "Each package has a single well-defined responsibility"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-041",
+      "skill": "Writing honest feature documentation that explicitly acknowledges limitations and non-features",
+      "evidence": [
+        "README.md — 'Honest Limitations' section acknowledges: overlay isn't universally omnipotent, no boot auto-start, no accounts/sync/analytics",
+        "Manual testing checklist provided instead of claiming full automation coverage"
+      ],
+      "evidence_strength": "moderate",
+      "transferable": true
+    },
+    {
+      "id": "SK-042",
+      "skill": "Implementing soft-delete via isActive flag with archive/reactivate operations instead of hard delete",
+      "evidence": [
+        "data/local/MedicationEntity.kt — isActive Boolean field",
+        "data/repository/RoomMedicationRepository.kt — setMedicationActive(id, isActive) updates existing entity",
+        "viewmodel/SettingsViewModel.kt — toggleArchive invokes setMedicationActive",
+        "ui/components/CommonComponents.kt — MedicationSelector shows '(archived)' label for inactive items"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-043",
+      "skill": "Using CoroutineScope with SupervisorJob for application-scoped background work",
+      "evidence": [
+        "AppContainer.kt — CoroutineScope(SupervisorJob() + Dispatchers.IO) for long-lived operations",
+        "Injected into OverlayPreferencesRepository for stateIn() sharing scope"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-044",
+      "skill": "Handling Android foreground service API changes across SDK versions with runtime version checks",
+      "evidence": [
+        "service/OverlayService.kt — Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE check for ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE parameter in startForeground()"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-045",
+      "skill": "Using ContextCompat.startForegroundService for backward-compatible foreground service launching",
+      "evidence": [
+        "overlay/DefaultOverlayController.kt — ContextCompat.startForegroundService(context, intent) instead of direct context.startForegroundService()"
+      ],
+      "evidence_strength": "strong",
+      "transferable": true
+    }
+  ],
+
+  "skill_clusters": [
+    {
+      "name": "Kotlin Language Proficiency",
+      "skill_ids": ["SK-001", "SK-002", "SK-003", "SK-007", "SK-043"]
+    },
+    {
+      "name": "Reactive State Management",
+      "skill_ids": ["SK-010", "SK-011", "SK-012", "SK-013"]
+    },
+    {
+      "name": "Android Data Persistence",
+      "skill_ids": ["SK-005", "SK-006", "SK-018", "SK-029"]
+    },
+    {
+      "name": "Input Validation & Safety",
+      "skill_ids": ["SK-008", "SK-009", "SK-019"]
+    },
+    {
+      "name": "Android Overlay & Service Lifecycle",
+      "skill_ids": ["SK-015", "SK-016", "SK-017", "SK-020", "SK-038", "SK-044", "SK-045"]
+    },
+    {
+      "name": "Jetpack Compose UI",
+      "skill_ids": ["SK-022", "SK-023", "SK-024", "SK-025", "SK-026", "SK-039"]
+    },
+    {
+      "name": "Time & Timezone Handling",
+      "skill_ids": ["SK-027", "SK-028", "SK-029", "SK-030"]
+    },
+    {
+      "name": "Testing & Quality Assurance",
+      "skill_ids": ["SK-031", "SK-032", "SK-033", "SK-034"]
+    },
+    {
+      "name": "CI/CD & Build Configuration",
+      "skill_ids": ["SK-035", "SK-036", "SK-037"]
+    },
+    {
+      "name": "Architecture & Design Patterns",
+      "skill_ids": ["SK-004", "SK-014", "SK-021", "SK-040", "SK-041", "SK-042"]
+    }
+  ],
+
+  "evidence_basis": {
+    "strong_evidence_count": 44,
+    "moderate_evidence_count": 1,
+    "weak_evidence_count": 0,
+    "primary_evidence_sources": [
+      "36 Kotlin source files in app/src/main/java/com/redpillz/pixelutility/",
+      "5 test files in app/src/test/java/com/redpillz/pixelutility/",
+      "app/build.gradle.kts (build configuration, dependencies, plugins)",
+      ".github/workflows/android-build.yml (CI pipeline definition)",
+      "AndroidManifest.xml (permissions, service declaration)",
+      "README.md (architecture description, limitations, test checklist)"
+    ],
+    "methodology": "Each skill claim is grounded in specific files, code patterns, or configuration artifacts observable in the repository. Skills were decomposed to the smallest independently meaningful unit. Broader labels (e.g., 'Android development') were avoided in favor of precise implementation-level capabilities."
+  },
+
+  "ambiguities_or_borderline_calls": [
+    {
+      "topic": "Proguard / code shrinking configuration",
+      "decision": "excluded",
+      "reason": "proguard-rules.pro exists but is empty (no custom rules). Presence of the file alone does not demonstrate skill in writing ProGuard configuration."
+    },
+    {
+      "topic": "Migration strategy for Room database",
+      "decision": "excluded as independent skill",
+      "reason": "fallbackToDestructiveMigration() is used, which is a development convenience. There is no evidence of writing actual Room migration logic. The use of fallback is noted as context within SK-005 but not elevated to a standalone skill."
+    },
+    {
+      "topic": "Accessibility",
+      "decision": "excluded",
+      "reason": "No evidence of accessibility annotations (contentDescription, semantics) or accessibility testing in the codebase."
+    },
+    {
+      "topic": "Error handling comprehensiveness",
+      "decision": "included as SK-007 and SK-008",
+      "reason": "Result<T> wrapping and input validation are clearly implemented, but there is no global error boundary or crash reporting. The skills are scoped to what is demonstrably present."
+    },
+    {
+      "topic": "Dependency management sophistication",
+      "decision": "included narrowly as SK-037",
+      "reason": "Build file shows KSP, Compose, and Room plugin configuration. However, there is no version catalog (libs.versions.toml), no multi-module setup, and no custom Gradle tasks. Skill claim is scoped to what is present."
+    },
+    {
+      "topic": "Documentation as a skill",
+      "decision": "included as SK-041 (moderate)",
+      "reason": "README is substantive and notably includes honest limitation disclosures and a manual test checklist, which is uncommon. However, documentation is a single file and inline code comments are minimal, so evidence strength is moderate."
+    },
+    {
+      "topic": "Test coverage breadth",
+      "decision": "skills included but scope noted",
+      "reason": "5 test files cover validation, calculation, status resolution, and one ViewModel. Several ViewModels, repositories, the service, and UI components lack test coverage. Testing skills are valid but limited in breadth."
+    }
+  ],
+
+  "transferable_signal_notes": [
+    {
+      "signal": "Reactive architecture thinking",
+      "skills": ["SK-010", "SK-011", "SK-012", "SK-013"],
+      "note": "The Flow/StateFlow combine pattern translates directly to any reactive framework (RxJava, RxJS, Combine, LiveData). The multi-source state aggregation pattern is broadly applicable."
+    },
+    {
+      "signal": "Interface-driven design with manual DI",
+      "skills": ["SK-004", "SK-014", "SK-020"],
+      "note": "Demonstrates understanding of dependency inversion without relying on framework magic. This transfers to any language/framework and signals architectural maturity."
+    },
+    {
+      "signal": "Timezone-safe temporal logic",
+      "skills": ["SK-028", "SK-029", "SK-030"],
+      "note": "Clock injection + Instant-as-canonical-time + ZoneId-at-boundaries is the correct pattern for any system handling time across contexts. Directly transferable."
+    },
+    {
+      "signal": "Sealed types for domain modeling",
+      "skills": ["SK-002", "SK-007"],
+      "note": "Pattern maps to discriminated unions, tagged unions, or sum types in other languages (TypeScript, Rust, Swift, Haskell). Demonstrates algebraic data type thinking."
+    },
+    {
+      "signal": "CI/CD pipeline design",
+      "skills": ["SK-035", "SK-036"],
+      "note": "GitHub Actions workflow is simple but correct. Transfers to any CI system. The artifact upload step shows awareness of build output delivery."
+    }
+  ],
+
+  "overclaim_risks": [
+    {
+      "area": "Testing maturity",
+      "risk": "Claiming comprehensive testing skill from 5 test files covering a subset of the codebase would overclaim. The testing patterns are sound but coverage is limited.",
+      "mitigation": "Skills SK-031 through SK-034 are scoped to specific demonstrated techniques, not to 'thorough testing practice.'"
+    },
+    {
+      "area": "Architecture at scale",
+      "risk": "The MVVM + repository pattern is well-implemented but in a small single-module app (~1,300 LoC). Claiming large-scale architecture experience from this repo alone would overclaim.",
+      "mitigation": "Skills are stated as implementation-level capabilities, not as 'system architecture' broadly."
+    },
+    {
+      "area": "Security implementation",
+      "risk": "SYSTEM_ALERT_WINDOW permission is used but the permission check is a simple Settings.canDrawOverlays() gate. No encryption, authentication, or data protection patterns are present.",
+      "mitigation": "No security-related skills are claimed."
+    }
+  ],
+
+  "dedupe_notes_for_cross_repo_merge": [
+    "SK-001 through SK-003 (Kotlin data classes, sealed interfaces, extension functions) will likely recur in any Kotlin repo. Merge by upgrading evidence strength.",
+    "SK-010 through SK-012 (Flow/StateFlow patterns) may appear in other Android or reactive repos. Keep as distinct skills but note evidence accumulation.",
+    "SK-030 (Clock injection) and SK-028 (timezone-aware date boundaries) are high-signal skills that may recur; prioritize for career database if seen across repos.",
+    "SK-035 and SK-036 (GitHub Actions CI) are generic and will overlap with many repos. Consider a single canonical 'GitHub Actions CI configuration' skill with repo-specific evidence links.",
+    "SK-014 (manual DI) is notable precisely because it's not Hilt/Dagger — flag as a distinct skill variant if DI-framework skills appear in other repos.",
+    "SK-041 (honest documentation) is relatively rare and worth preserving even if documentation skills appear elsewhere."
+  ],
+
+  "main_takeaway": "This repository demonstrates solid Android application development with a clear emphasis on architectural discipline, reactive state management, and implementation honesty. The strongest skill signals are in Kotlin-idiomatic design patterns (sealed types, Result<T>, extension functions), reactive multi-source state composition via Flow/StateFlow, timezone-correct temporal logic with Clock injection, and Android platform-specific service lifecycle management. Testing skills are present and well-patterned but limited in coverage breadth. The codebase favors explicit contracts and manual control (manual DI, no framework magic) over convenience, which signals implementation rigor that transfers across platforms. The honest limitation documentation and soft-delete pattern suggest a disciplined approach to scope management."
+}
